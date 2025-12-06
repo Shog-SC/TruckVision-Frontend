@@ -136,12 +136,18 @@ async function loadFuelStations() {
 // Attendu : fichier ets2-roads.geojson dans le repo (GeoJSON de lignes)
 async function loadEts2Roads() {
   try {
+    console.log("[TruckVision] Chargement des routes ETS2...");
+
     const res = await fetch(ETS2_ROADS_URL);
+
     if (!res.ok) {
-      console.warn("Impossible de charger ets2-roads.geojson (pas encore présent ?)");
+      console.warn("[TruckVision] Impossible de charger ets2-roads.geojson :", res.status, res.statusText);
       return;
     }
+
     const geo = await res.json();
+    console.log("[TruckVision] GeoJSON ETS2 charge, nombre de features :", geo.features ? geo.features.length : "??");
+
     ets2RoadsLayer.clearLayers();
 
     L.geoJSON(geo, {
@@ -153,8 +159,10 @@ async function loadEts2Roads() {
         };
       }
     }).addTo(ets2RoadsLayer);
+
+    console.log("[TruckVision] Routes ETS2 ajoutees a la carte.");
   } catch (e) {
-    console.error("Erreur loadEts2Roads()", e);
+    console.error("[TruckVision] Erreur loadEts2Roads()", e);
   }
 }
 
@@ -195,7 +203,7 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const toRad = (v) => (v * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
+  const dLon = toRad(lat2 - lon1);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(lat1)) *
@@ -504,4 +512,3 @@ setInterval(loadPlayers, REFRESH_PLAYERS_MS);
 document.addEventListener("DOMContentLoaded", () => {
   initAutoCenterToggle();
 });
-
