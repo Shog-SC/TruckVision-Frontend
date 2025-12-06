@@ -1,20 +1,17 @@
-// TruckVision V5 - Mega Update (sans HUD flottant)
+// TruckVision V6 - Auto Center + ETS2 Routes Ready
 // ------------------------------------------------
-// - Carte dark (nuit) avec villes ETS2
-// - Stations essence
-// - Camion + routes (heatmap simple)
-// - Dashboard avancé : ADR, RPM, rapport, fuel %, dégâts, régulateur
-// - Radar (joueurs <= 5 km)
-// - ETA / temps restant (si dispo dans navigation)
-// - Stats de session : durée, distance, conso estimée
-// - Refresh configurable pour limiter la charge Cloudflare
+// - Carte dark centrée Europe ETS2
+// - Villes, stations, camions, routes (heatmap)
+// - Dashboard ADR + moteur + session + radar
+// - Auto Center ON/OFF (bouton)
+// - Couche pour routes ETS2 officielles (GeoJSON externe)
 
 // ================== CONFIG ==================
 const WORKER_BASE_URL    = "https://truckvision-api.yoyoastico74.workers.dev";
 const ME_PLAYER_KEY      = "shogoun-main";
 const ACCESS_KEY         = "";       // Optionnel, ex: "TV-SECRET"
-// Refresh des joueurs (ms) → 2000 = 2 secondes (recommandé)
-const REFRESH_PLAYERS_MS = 2000;
+const REFRESH_PLAYERS_MS = 2000;     // Refresh des joueurs (ms)
+const ETS2_ROADS_URL     = "ets2-roads.geojson"; // GeoJSON des routes ETS2 (option 3)
 
 // ================== SÉCURITÉ SIMPLE ==================
 if (ACCESS_KEY && typeof window !== "undefined") {
@@ -54,11 +51,16 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
 
 // Layers
 const trucksLayer = L.layerGroup().addTo(map);
-const routeLayer  = L.layerGroup().addTo(map);   // routes “heatmap”
+const routeLayer  = L.layerGroup().addTo(map);   // routes joueurs (heatmap)
 const fuelLayer   = L.layerGroup().addTo(map);
 const citiesLayer = L.layerGroup().addTo(map);
+const ets2RoadsLayer = L.layerGroup().addTo(map); // routes ETS2 officielles (option 3)
 
 let myRoutePolyline = null;
+
+// Auto-center
+let autoCenterEnabled = true;
+let hasInitialCentered = false;
 
 // ================== ICONES ==================
 const myTruckIcon = L.divIcon({
@@ -127,6 +129,32 @@ async function loadFuelStations() {
     });
   } catch (e) {
     console.error("Erreur loadFuelStations()", e);
+  }
+}
+
+// ================== ROUTES ETS2 OFFICIELLES (Option 3) ==================
+// Attendu : fichier ets2-roads.geojson dans le repo (GeoJSON de lignes)
+async function loadEts2Roads() {
+  try {
+    const res = await fetch(ETS2_ROADS_URL);
+    if (!res.ok) {
+      console.warn("Impossible de charger ets2-roads.geojson (pas encore présent ?)");
+      return;
+    }
+    const geo = await res.json();
+    ets2RoadsLayer.clearLayers();
+
+    L.geoJSON(geo, {
+      style: function () {
+        return {
+          color: "#e5e7eb",     // gris clair
+          weight: 2.5,
+          opacity: 0.9
+        };
+      }
+    }).addTo(ets2RoadsLayer);
+  } catch (e) {
+    console.error("Erreur loadEts2Roads()", e);
   }
 }
 
@@ -254,7 +282,7 @@ function updatePlayersOnMap(players) {
 
     marker.addTo(trucksLayer);
 
-    // Heatmap simple : routes de tous les joueurs en arrière-plan
+    // Heatmap simple : routes de tous les joueurs
     if (Array.isArray(p.route) && p.route.length > 1) {
       const latlngs = p.route
         .filter((pt) => typeof pt.lat === "number" && typeof pt.lon === "number")
@@ -270,7 +298,15 @@ function updatePlayersOnMap(players) {
 
     if (isMe) {
       me = p;
-      map.setView([p.lat, p.lon], 7);
+
+      // Initial auto center uniquement une fois
+      if (!hasInitialCentered) {
+        map.setView([p.lat, p.lon], 7);
+        hasInitialCentered = true;
+      } else if (autoCenterEnabled) {
+        // Auto center actif : on suit le camion, mais on respecte le zoom
+        map.panTo([p.lat, p.lon]);
+      }
     }
   });
 
@@ -278,7 +314,6 @@ function updatePlayersOnMap(players) {
   if (me && typeof me.lat === "number" && typeof me.lon === "number") {
     if (lastMeLat !== null && lastMeLon !== null) {
       const d = haversineKm(lastMeLat, lastMeLon, me.lat, me.lon);
-      // on ignore les gros jumps (téléport)
       if (d < 50) {
         sessionDistanceKm += d;
       }
@@ -318,7 +353,7 @@ function updateSidebar(players) {
     const dmgEng = Math.round((truck.damageEngine || 0) * 100);
     const dmgTrn = Math.round((truck.damageTransmission || 0) * 100);
     const cruise = !!truck.cruiseControlOn;
-    const cruiseSpeed = truck.cruiseControlSpeed ? Math.round(truck.cruiseControlSpeed * 3.6) : 0; // m/s -> km/h
+    const cruiseSpeed = truck.cruiseControlSpeed ? Math.round(truck.cruiseControlSpeed * 3.6) : 0;
     const nav   = me.navigation || {};
     const etaStr= nav.estimatedTime ? formatEtaFromSeconds(nav.estimatedTime) : "—";
 
@@ -333,7 +368,7 @@ function updateSidebar(players) {
       fuelPer100 = (fuelUsed / sessionDistanceKm) * 100;
     }
 
-    // Radar simple : joueurs à moins de 5 km
+    // Radar simple : joueurs <= 5 km
     const nearby = players
       .filter(p => p.playerKey !== ME_PLAYER_KEY && p.lat && p.lon)
       .map(p => {
@@ -439,10 +474,33 @@ function updateSidebar(players) {
   });
 }
 
+// ================== UI : Auto Center Toggle ==================
+function initAutoCenterToggle() {
+  const btn = document.getElementById("tv-autocenter-toggle");
+  if (!btn) return;
+
+  const refreshLabel = () => {
+    btn.textContent = autoCenterEnabled ? "Auto Center: ON" : "Auto Center: OFF";
+  };
+
+  btn.addEventListener("click", () => {
+    autoCenterEnabled = !autoCenterEnabled;
+    refreshLabel();
+  });
+
+  refreshLabel();
+}
+
 // ================== START ==================
 drawCities();
 loadFuelStations();
+loadEts2Roads();
 loadPlayers();
 
-// Refresh joueurs (configurable en haut)
+// Refresh joueurs
 setInterval(loadPlayers, REFRESH_PLAYERS_MS);
+
+// Init UI quand DOM prêt
+document.addEventListener("DOMContentLoaded", () => {
+  initAutoCenterToggle();
+});
