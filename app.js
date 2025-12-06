@@ -1,17 +1,20 @@
-// TruckVision V4 - Frontend
-// -------------------------
-// - Carte dark (fond noir type nuit)
-// - Villes ETS2 simplifiées
+// TruckVision V5 - Mega Update (sans HUD flottant)
+// ------------------------------------------------
+// - Carte dark (nuit) avec villes ETS2
 // - Stations essence
-// - Camion + route historique
-// - Dashboard : vitesse, ADR, RPM, rapport, fuel, dégâts, régulateur
+// - Camion + routes (heatmap simple)
+// - Dashboard avancé : ADR, RPM, rapport, fuel %, dégâts, régulateur
+// - Radar (joueurs <= 5 km)
+// - ETA / temps restant (si dispo dans navigation)
+// - Stats de session : durée, distance, conso estimée
 // - Refresh configurable pour limiter la charge Cloudflare
 
 // ================== CONFIG ==================
-const WORKER_BASE_URL   = "https://truckvision-api.yoyoastico74.workers.dev";
-const ME_PLAYER_KEY     = "shogoun-main";
-const ACCESS_KEY        = "";         // Optionnel, ex: "TV-SECRET"
-const REFRESH_PLAYERS_MS = 2000;      // Refresh des joueurs (ms) → 2000 = 2s
+const WORKER_BASE_URL    = "https://truckvision-api.yoyoastico74.workers.dev";
+const ME_PLAYER_KEY      = "shogoun-main";
+const ACCESS_KEY         = "";       // Optionnel, ex: "TV-SECRET"
+// Refresh des joueurs (ms) → 2000 = 2 secondes (recommandé)
+const REFRESH_PLAYERS_MS = 2000;
 
 // ================== SÉCURITÉ SIMPLE ==================
 if (ACCESS_KEY && typeof window !== "undefined") {
@@ -43,7 +46,7 @@ const map = L.map("map", {
   maxBoundsViscosity: 0.8
 }).setView([52.0, 10.0], 5);
 
-// Fond de carte DARK (comme avant)
+// Fond de carte DARK (nuit)
 L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap &copy; CARTO',
@@ -51,7 +54,7 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
 
 // Layers
 const trucksLayer = L.layerGroup().addTo(map);
-const routeLayer  = L.layerGroup().addTo(map);
+const routeLayer  = L.layerGroup().addTo(map);   // routes “heatmap”
 const fuelLayer   = L.layerGroup().addTo(map);
 const citiesLayer = L.layerGroup().addTo(map);
 
@@ -159,6 +162,46 @@ function getAdrInfo(cargoName) {
   return { adrClass: null, label: "Non ADR détecté", color: "#9ca3af" };
 }
 
+// ================== UTILS ==================
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const toRad = (v) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) *
+      Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function formatDuration(ms) {
+  if (!ms || ms <= 0) return "—";
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m}min`;
+}
+
+function formatEtaFromSeconds(sec) {
+  if (!sec || sec <= 0) return "—";
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h}h ${m}min`;
+  return `${m}min`;
+}
+
+// ================== STATS DE SESSION ==================
+let sessionStartTime = Date.now();
+let lastMeLat = null;
+let lastMeLon = null;
+let sessionDistanceKm = 0;
+let sessionFuelStart = null;
+
 // ================== JOUEURS ==================
 async function loadPlayers() {
   try {
@@ -187,6 +230,7 @@ function updatePlayersOnMap(players) {
     const icon = isMe ? myTruckIcon : otherTruckIcon;
     const heading = typeof p.heading === "number" ? p.heading : 0;
 
+    // Marker camion
     const marker = L.marker([p.lat, p.lon], {
       icon,
       rotationAngle: heading,
@@ -210,25 +254,37 @@ function updatePlayersOnMap(players) {
 
     marker.addTo(trucksLayer);
 
+    // Heatmap simple : routes de tous les joueurs en arrière-plan
+    if (Array.isArray(p.route) && p.route.length > 1) {
+      const latlngs = p.route
+        .filter((pt) => typeof pt.lat === "number" && typeof pt.lon === "number")
+        .map((pt) => [pt.lat, pt.lon]);
+      if (latlngs.length > 1) {
+        L.polyline(latlngs, {
+          color: isMe ? "#38bdf8" : "rgba(148,163,184,0.6)",
+          weight: isMe ? 3 : 2,
+          opacity: isMe ? 0.95 : 0.4,
+        }).addTo(routeLayer);
+      }
+    }
+
     if (isMe) {
       me = p;
       map.setView([p.lat, p.lon], 7);
     }
   });
 
-  // Route perso
-  if (me && Array.isArray(me.route) && me.route.length > 1) {
-    const latlngs = me.route
-      .filter((pt) => typeof pt.lat === "number" && typeof pt.lon === "number")
-      .map((pt) => [pt.lat, pt.lon]);
-
-    if (latlngs.length > 1) {
-      myRoutePolyline = L.polyline(latlngs, {
-        color: "#38bdf8",
-        weight: 3,
-        opacity: 0.9,
-      }).addTo(routeLayer);
+  // Distance de session pour "me"
+  if (me && typeof me.lat === "number" && typeof me.lon === "number") {
+    if (lastMeLat !== null && lastMeLon !== null) {
+      const d = haversineKm(lastMeLat, lastMeLon, me.lat, me.lon);
+      // on ignore les gros jumps (téléport)
+      if (d < 50) {
+        sessionDistanceKm += d;
+      }
     }
+    lastMeLat = me.lat;
+    lastMeLon = me.lon;
   }
 }
 
@@ -238,6 +294,11 @@ function updateSidebar(players) {
   const playersDiv = document.getElementById("tv-players");
 
   const me = players.find((p) => p.playerKey === ME_PLAYER_KEY);
+
+  const now = Date.now();
+  const sessionDurationMs = now - sessionStartTime;
+
+  let radarLines = [];
 
   if (me) {
     const speed = me.speedKph ? Math.round(me.speedKph) : 0;
@@ -258,6 +319,32 @@ function updateSidebar(players) {
     const dmgTrn = Math.round((truck.damageTransmission || 0) * 100);
     const cruise = !!truck.cruiseControlOn;
     const cruiseSpeed = truck.cruiseControlSpeed ? Math.round(truck.cruiseControlSpeed * 3.6) : 0; // m/s -> km/h
+    const nav   = me.navigation || {};
+    const etaStr= nav.estimatedTime ? formatEtaFromSeconds(nav.estimatedTime) : "—";
+
+    // Stats session fuel
+    if (sessionFuelStart === null && fuel > 0) {
+      sessionFuelStart = fuel;
+    }
+    let fuelUsed = null;
+    let fuelPer100 = null;
+    if (sessionFuelStart !== null && fuelCap > 0 && sessionDistanceKm > 0) {
+      fuelUsed = Math.max(0, sessionFuelStart - fuel);
+      fuelPer100 = (fuelUsed / sessionDistanceKm) * 100;
+    }
+
+    // Radar simple : joueurs à moins de 5 km
+    const nearby = players
+      .filter(p => p.playerKey !== ME_PLAYER_KEY && p.lat && p.lon)
+      .map(p => {
+        const dist = haversineKm(me.lat, me.lon, p.lat, p.lon);
+        return { playerKey: p.playerKey, distanceKm: dist, speedKph: Math.round(p.speedKph || 0) };
+      })
+      .filter(x => x.distanceKm <= 5)
+      .sort((a, b) => a.distanceKm - b.distanceKm)
+      .slice(0, 5);
+
+    radarLines = nearby.map(n => `• ${n.playerKey} – ${n.distanceKm.toFixed(2)} km (${n.speedKph} km/h)`);
 
     meStats.innerHTML = `
       <div class="tv-section-title">Mon camion</div>
@@ -292,6 +379,19 @@ function updateSidebar(players) {
       <div class="tv-stat">
         <b>État :</b> ${cruise ? "<span style='color:#22c55e;'>ON</span>" : "OFF"} 
         ${cruise && cruiseSpeed ? `(${cruiseSpeed} km/h)` : ""}
+      </div>
+
+      <div class="tv-section-title">Navigation</div>
+      <div class="tv-stat"><b>ETA estimé :</b> ${etaStr}</div>
+
+      <div class="tv-section-title">Session</div>
+      <div class="tv-stat"><b>Durée :</b> ${formatDuration(sessionDurationMs)}</div>
+      <div class="tv-stat"><b>Distance :</b> ${sessionDistanceKm.toFixed(1)} km</div>
+      <div class="tv-stat"><b>Conso :</b> ${fuelPer100 ? fuelPer100.toFixed(1) + " L/100km" : "—"}</div>
+
+      <div class="tv-section-title">Radar (≤5 km)</div>
+      <div class="tv-stat">
+        ${radarLines.length === 0 ? "Aucun joueur proche." : radarLines.join("<br>")}
       </div>
     `;
   } else {
@@ -344,5 +444,5 @@ drawCities();
 loadFuelStations();
 loadPlayers();
 
-// Refresh des joueurs (configurable en haut)
+// Refresh joueurs (configurable en haut)
 setInterval(loadPlayers, REFRESH_PLAYERS_MS);
