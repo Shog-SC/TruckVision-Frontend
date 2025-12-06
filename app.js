@@ -337,3 +337,4 @@ drawCities();
 loadFuelStations();
 loadPlayers();
 setInterval(loadPlayers, 1000);
+
