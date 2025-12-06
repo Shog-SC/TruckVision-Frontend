@@ -1,28 +1,170 @@
+<!-- TruckVision Frontend V2
+     ------------------------
+     Ajouts par rapport à la V1 :
+     - Icône camion rotative (heading)
+     - Affichage de tous les joueurs TruckVision
+     - Trace de la route (historique de positions) pour le joueur local
+     - Stations essence (données Worker)
+     - Petit panneau de stats joueur + liste joueurs
+
+     Contenu de ce fichier :
+     - index.html (jusqu'au commentaire /* app.js */)
+     - app.js (après ce commentaire)
+-->
+
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>TruckVision Live Map</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            overflow: hidden;
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <title>TruckVision Live Map V2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0b1120;
+      color: #e5e7eb;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+    }
+
+    .tv-sidebar {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 10px 12px;
+      background: rgba(15, 23, 42, 0.9);
+      border-radius: 8px;
+      z-index: 1000;
+      min-width: 230px;
+      max-width: 280px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      font-size: 12px;
+    }
+
+    .tv-sidebar h1 {
+      font-size: 14px;
+      margin: 0 0 4px;
+    }
+
+    .tv-sidebar .subtitle {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 8px;
+    }
+
+    .tv-section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #9ca3af;
+      margin: 8px 0 4px;
+      border-top: 1px solid rgba(55,65,81,0.7);
+      padding-top: 4px;
+    }
+
+    .tv-stat {
+      font-size: 11px;
+      margin: 2px 0;
+    }
+
+    .tv-players-list {
+      max-height: 140px;
+      overflow-y: auto;
+      margin-top: 4px;
+      border-radius: 4px;
+      background: rgba(15,23,42,0.6);
+      border: 1px solid rgba(55,65,81,0.7);
+    }
+
+    .tv-player-row {
+      padding: 3px 6px;
+      border-bottom: 1px solid rgba(31,41,55,0.7);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+    }
+
+    .tv-player-row:last-child {
+      border-bottom: none;
+    }
+
+    .tv-player-name {
+      font-weight: 600;
+    }
+
+    .tv-player-me {
+      color: #fbbf24;
+    }
+
+    .tv-player-speed {
+      color: #9ca3af;
+      font-size: 11px;
+    }
+
+    .tv-badge {
+      display: inline-block;
+      padding: 1px 5px;
+      border-radius: 999px;
+      font-size: 10px;
+      background: rgba(37, 99, 235, 0.2);
+      color: #bfdbfe;
+      margin-left: 4px;
+    }
+
+    .tv-badge.me {
+      background: rgba(234, 179, 8, 0.2);
+      color: #facc15;
+    }
+
+    /* Icône camion (divIcon) */
+    .tv-truck-icon {
+      font-size: 18px;
+      text-align: center;
+      line-height: 18px;
+      transform-origin: center center;
+      filter: drop-shadow(0 0 3px rgba(0,0,0,0.9));
+    }
+
+    .tv-truck-me {
+      text-shadow: 0 0 5px rgba(251, 191, 36, 0.9);
+    }
+
+    .tv-truck-other {
+      opacity: 0.9;
+    }
+  </style>
 </head>
 <body>
+  <div id="map"></div>
+  <div class="tv-sidebar">
+    <h1>TruckVision <span style="color:#60a5fa;">V2</span></h1>
+    <div class="subtitle">Live map reliée à ton Worker Cloudflare</div>
+    <div id="tv-me-stats"></div>
+    <div class="tv-section-title">Joueurs connectés</div>
+    <div id="tv-players" class="tv-players-list"></div>
+  </div>
 
-<div id="map"></div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="app.js"></script>
-
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <!-- Plugin pour rotation des marqueurs -->
+  <script src="https://unpkg.com/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
