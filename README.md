@@ -1,1 +1,0 @@
-# TruckVision-Frontend
