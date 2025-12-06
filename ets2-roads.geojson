@@ -1,0 +1,70 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Paris - Calais"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [2.3522, 48.8566],   // Paris
+          [1.8520, 50.9513]    // Calais
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Paris - Lyon"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [2.3522, 48.8566],   // Paris
+          [4.8357, 45.7640]    // Lyon
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Lyon - Milan"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [4.8357, 45.7640],   // Lyon
+          [9.1900, 45.4642]    // Milan
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Berlin - Hamburg"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [13.4050, 52.5200],  // Berlin
+          [9.9937, 53.5511]    // Hamburg
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Berlin - Varsovie"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [13.4050, 52.5200],  // Berlin
+          [21.0122, 52.2297]   // Varsovie
+        ]
+      }
+    }
+  ]
+}
