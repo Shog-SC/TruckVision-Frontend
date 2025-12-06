@@ -147,9 +147,9 @@ async function loadEts2Roads() {
     L.geoJSON(geo, {
       style: function () {
         return {
-          color: "#e5e7eb",     // gris clair
-          weight: 2.5,
-          opacity: 0.9
+          color: "#22c55e",   // vert vif
+          weight: 4,
+          opacity: 0.95
         };
       }
     }).addTo(ets2RoadsLayer);
@@ -504,3 +504,4 @@ setInterval(loadPlayers, REFRESH_PLAYERS_MS);
 document.addEventListener("DOMContentLoaded", () => {
   initAutoCenterToggle();
 });
+
