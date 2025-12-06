@@ -1,170 +1,169 @@
-<!-- TruckVision Frontend V2
-     ------------------------
-     Ajouts par rapport à la V1 :
-     - Icône camion rotative (heading)
-     - Affichage de tous les joueurs TruckVision
-     - Trace de la route (historique de positions) pour le joueur local
-     - Stations essence (données Worker)
-     - Petit panneau de stats joueur + liste joueurs
-
-     Contenu de ce fichier :
-     - index.html (jusqu'au commentaire /* app.js */)
-     - app.js (après ce commentaire)
--->
-
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <title>TruckVision Live Map V2</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
-  />
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #0b1120;
-      color: #e5e7eb;
-    }
+    <meta charset="UTF-8" />
+    <title>TruckVision Live Map</title>
 
-    #map {
-      position: absolute;
-      inset: 0;
-    }
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-    .tv-sidebar {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      padding: 10px 12px;
-      background: rgba(15, 23, 42, 0.9);
-      border-radius: 8px;
-      z-index: 1000;
-      min-width: 230px;
-      max-width: 280px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
-      font-size: 12px;
-    }
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #0f172a;
+            font-family: system-ui, sans-serif;
+            color: #f8fafc;
+        }
 
-    .tv-sidebar h1 {
-      font-size: 14px;
-      margin: 0 0 4px;
-    }
+        #container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
 
-    .tv-sidebar .subtitle {
-      font-size: 11px;
-      color: #9ca3af;
-      margin-bottom: 8px;
-    }
+        /* Sidebar (à gauche) */
+        #sidebar {
+            width: 340px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            padding: 15px;
+            overflow-y: auto;
+        }
 
-    .tv-section-title {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #9ca3af;
-      margin: 8px 0 4px;
-      border-top: 1px solid rgba(55,65,81,0.7);
-      padding-top: 4px;
-    }
+        #sidebar h1 {
+            margin-top: 0;
+            font-size: 22px;
+            color: #38bdf8;
+            text-align: center;
+        }
 
-    .tv-stat {
-      font-size: 11px;
-      margin: 2px 0;
-    }
+        /* Button Auto Center */
+        #tv-autocenter-toggle {
+            width: 100%;
+            padding: 10px;
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 16px;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+        #tv-autocenter-toggle:hover {
+            background: #475569;
+        }
 
-    .tv-players-list {
-      max-height: 140px;
-      overflow-y: auto;
-      margin-top: 4px;
-      border-radius: 4px;
-      background: rgba(15,23,42,0.6);
-      border: 1px solid rgba(55,65,81,0.7);
-    }
+        /* Titles */
+        .tv-section-title {
+            margin-top: 20px;
+            margin-bottom: 5px;
+            font-size: 16px;
+            color: #38bdf8;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 4px;
+        }
 
-    .tv-player-row {
-      padding: 3px 6px;
-      border-bottom: 1px solid rgba(31,41,55,0.7);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 11px;
-    }
+        /* Stats entries */
+        .tv-stat {
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
 
-    .tv-player-row:last-child {
-      border-bottom: none;
-    }
+        /* Player list */
+        #tv-players {
+            margin-top: 10px;
+            padding-bottom: 30px;
+        }
 
-    .tv-player-name {
-      font-weight: 600;
-    }
+        .tv-player-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            background: #303c52;
+            border-radius: 5px;
+            margin-bottom: 6px;
+        }
 
-    .tv-player-me {
-      color: #fbbf24;
-    }
+        .tv-player-name {
+            font-weight: 600;
+        }
 
-    .tv-player-speed {
-      color: #9ca3af;
-      font-size: 11px;
-    }
+        .tv-player-me {
+            color: #38bdf8;
+        }
 
-    .tv-badge {
-      display: inline-block;
-      padding: 1px 5px;
-      border-radius: 999px;
-      font-size: 10px;
-      background: rgba(37, 99, 235, 0.2);
-      color: #bfdbfe;
-      margin-left: 4px;
-    }
+        .tv-badge {
+            padding: 2px 6px;
+            background: #475569;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
 
-    .tv-badge.me {
-      background: rgba(234, 179, 8, 0.2);
-      color: #facc15;
-    }
+        .tv-badge.me {
+            background: #0ea5e9;
+            color: #0f172a;
+        }
 
-    /* Icône camion (divIcon) */
-    .tv-truck-icon {
-      font-size: 18px;
-      text-align: center;
-      line-height: 18px;
-      transform-origin: center center;
-      filter: drop-shadow(0 0 3px rgba(0,0,0,0.9));
-    }
+        .tv-player-speed {
+            font-size: 14px;
+        }
 
-    .tv-truck-me {
-      text-shadow: 0 0 5px rgba(251, 191, 36, 0.9);
-    }
+        /* Map */
+        #map {
+            flex: 1;
+            height: 100%;
+            width: 100%;
+        }
 
-    .tv-truck-other {
-      opacity: 0.9;
-    }
-  </style>
+        /* Truck icons */
+        .tv-truck-icon {
+            font-size: 20px;
+        }
+
+        .tv-truck-me {
+            color: #38bdf8;
+            text-shadow: 0 0 4px #0ea5e9;
+        }
+
+        .tv-truck-other {
+            color: #e2e8f0;
+            opacity: 0.8;
+        }
+    </style>
 </head>
-<body>
-  <div id="map"></div>
-  <div class="tv-sidebar">
-    <h1>TruckVision <span style="color:#60a5fa;">V2</span></h1>
-    <div class="subtitle">Live map reliée à ton Worker Cloudflare</div>
-    <div id="tv-me-stats"></div>
-    <div class="tv-section-title">Joueurs connectés</div>
-    <div id="tv-players" class="tv-players-list"></div>
-  </div>
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
-  <!-- Plugin pour rotation des marqueurs -->
-  <script src="https://unpkg.com/leaflet-rotatedmarker@0.2.0/leaflet.rotatedMarker.js"></script>
-  <script src="./app.js"></script>
+<body>
+    <div id="container">
+
+        <!-- SIDEBAR -->
+        <div id="sidebar">
+            <h1>TruckVision V6</h1>
+
+            <!-- Auto Center Button -->
+            <button id="tv-autocenter-toggle">Auto Center: ON</button>
+
+            <!-- My Stats -->
+            <div id="tv-me-stats">
+                Chargement camion...
+            </div>
+
+            <!-- Other Players -->
+            <div class="tv-section-title">Joueurs connectés</div>
+            <div id="tv-players"></div>
+        </div>
+
+        <!-- MAP -->
+        <div id="map"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- TruckVision App -->
+    <script src="app.js"></script>
+
 </body>
 </html>
